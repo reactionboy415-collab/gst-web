@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GST Sentinel – Professional Tax Compliance Dashboard for CAs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+
+    body {
+      background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
+      background-attachment: fixed;
+    }
+
+    .glass {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .gradient-main {
+      background: linear-gradient(135deg, #10b981, #22c55e);
+    }
+
+    .gradient-header {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(34, 197, 94, 0.15));
+    }
+
+    .status-active     { background: linear-gradient(135deg, #10b981, #16a34a); color:#fff; box-shadow:0 0 20px rgba(16,185,129,.5); }
+    .status-cancelled  { background: linear-gradient(135deg, #ef4444, #b91c1c); color:#fff; box-shadow:0 0 20px rgba(239,68,68,.5); }
+    .status-suspended  { background: linear-gradient(135deg, #f59e0b, #d97706); color:#fff; box-shadow:0 0 20px rgba(245,158,11,.5); }
+    .status-unknown    { background: linear-gradient(135deg, #6b7280, #4b5563); color:#fff; box-shadow:0 0 20px rgba(107,114,128,.5); }
+
+    .drag-over {
+      border-color:#10b981 !important;
+      background:rgba(16,185,129,0.15) !important;
+      transform:scale(1.015);
+    }
+
+    .slide-over { transform:translateX(100%); transition:transform .4s cubic-bezier(.4,0,.2,1); }
+    .slide-over.open { transform:translateX(0); }
+
+    .fade-in { animation:fadeIn .4s ease-out; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
+
+    .shimmer {
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+      animation:shimmer 2.2s infinite;
+    }
+    @keyframes shimmer { 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
+
+    .scrollbar::-webkit-scrollbar { width:10px;height:10px; }
+    .scrollbar::-webkit-scrollbar-track { background:#020617; }
+    .scrollbar::-webkit-scrollbar-thumb { background:#10b981;border-radius:5px; }
+
+    .info-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:0.35rem;
+      padding:0.35rem 0.65rem;
+      border-radius:0.5rem;
+      font-size:0.7rem;
+      font-weight:600;
+      background:rgba(16,185,129,0.12);
+      color:#10b981;
+      border:1px solid rgba(16,185,129,0.3);
+    }
+
+    .return-row:hover {
+      background:rgba(16,185,129,0.08);
+    }
+
+    .pulse-glow {
+      animation:pulseGlow 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow:0 0 15px rgba(16,185,129,0.4); }
+      50% { box-shadow:0 0 28px rgba(16,185,129,0.7); }
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+
+<!-- Password Gate -->
+<div id="loginOverlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/97 backdrop-blur-lg">
+  <div class="glass rounded-3xl p-12 max-w-md w-full shadow-2xl pulse-glow fade-in">
+    <div class="flex justify-center mb-8">
+      <div class="gradient-main p-5 rounded-2xl shadow-2xl">
+        <i data-lucide="shield-check" class="w-12 h-12 text-white"></i>
+      </div>
+    </div>
+    <h1 class="text-4xl font-black text-center mb-2 bg-gradient-to-r from-emerald-400 via-emerald-500 to-green-600 bg-clip-text text-transparent">
+      GST Sentinel
+    </h1>
+    <p class="text-center text-slate-400 mb-10 text-sm font-medium">Enterprise-Grade GST Compliance Suite for Chartered Accountants</p>
+
+    <form id="loginForm" class="space-y-6">
+      <div>
+        <label class="block text-sm font-bold mb-3 text-slate-200">Access Password</label>
+        <div class="relative">
+          <input
+            id="loginPassword"
+            type="password"
+            class="w-full px-5 py-4 bg-slate-950/80 border-2 border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition font-medium"
+            placeholder="Enter dashboard password"
+            autocomplete="off"
+            required
+          />
+          <i data-lucide="lock" class="w-5 h-5 text-slate-500 absolute right-4 top-1/2 -translate-y-1/2"></i>
+        </div>
+      </div>
+      <div id="loginError" class="hidden text-red-400 text-sm bg-red-500/10 border border-red-500/40 rounded-xl px-4 py-3"></div>
+      <button
+        type="submit"
+        class="w-full gradient-main hover:brightness-110 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition shadow-xl"
+      >
+        <i data-lucide="log-in" class="w-5 h-5"></i>
+        <span>Access Dashboard</span>
+      </button>
+    </form>
+
+    <div class="mt-8 flex items-center justify-center gap-2 text-xs text-slate-500">
+      <i data-lucide="shield" class="w-3 h-3"></i>
+      <span>Secured with enterprise-grade authentication</span>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="sticky top-0 z-40 glass border-b border-slate-700/60 shadow-xl">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="gradient-main p-3 rounded-xl shadow-xl pulse-glow">
+        <i data-lucide="file-check" class="w-7 h-7 text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-black tracking-tight">GST Sentinel</h1>
+        <p class="text-xs text-slate-400 font-semibold">Real-time GST Verification & Compliance Intelligence</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        onclick="openHistory()"
+        class="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl glass hover:bg-slate-800/70 border border-slate-700 text-sm font-semibold transition"
+      >
+        <i data-lucide="clock" class="w-4 h-4 text-emerald-400"></i><span>History</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+
+  <!-- Single GST Verification -->
+  <section class="glass rounded-2xl p-8 shadow-2xl fade-in border border-slate-700/50">
+    <div class="flex items-center gap-3 mb-6">
+      <div class="gradient-header rounded-xl p-2.5 border border-emerald-500/30">
+        <i data-lucide="search" class="w-6 h-6 text-emerald-400"></i>
+      </div>
+      <h2 class="text-xl font-bold">Single GST Verification</h2>
+    </div>
+    <div class="flex flex-col md:flex-row gap-4">
+      <input
+        id="singleGST"
+        type="text"
+        maxlength="15"
+        class="flex-1 px-5 py-4 bg-slate-950/80 border-2 border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none uppercase font-mono text-lg transition"
+        placeholder="Enter 15-digit GSTIN (e.g., 07AABCU9603R1ZN)"
+      />
+      <button
+        onclick="verifySingleGST()"
+        class="gradient-main text-white px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:brightness-110 transition shadow-xl"
+      >
+        <i data-lucide="shield-check" class="w-5 h-5"></i><span>Verify GST</span>
+      </button>
+    </div>
+    <div id="singleResult" class="hidden mt-8"></div>
+  </section>
+
+  <!-- Bulk GST Verification -->
+  <section class="glass rounded-2xl p-8 shadow-2xl fade-in border border-slate-700/50">
+    <div class="flex items-center gap-3 mb-6">
+      <div class="gradient-header rounded-xl p-2.5 border border-emerald-500/30">
+        <i data-lucide="upload-cloud" class="w-6 h-6 text-emerald-400"></i>
+      </div>
+      <h2 class="text-xl font-bold">Bulk GST Verification</h2>
+    </div>
+
+    <div
+      id="dropZone"
+      class="border-3 border-dashed border-slate-600 rounded-2xl p-14 text-center cursor-pointer hover:border-emerald-500 transition-all duration-300"
+    >
+      <i data-lucide="file-spreadsheet" class="w-16 h-16 mx-auto mb-5 text-emerald-400"></i>
+      <p class="text-lg font-bold mb-2">Drop Excel/CSV file here</p>
+      <p class="text-xs text-slate-400 mb-3">or click to browse your files</p>
+      <p class="text-[11px] text-slate-500">📊 First column should contain GST numbers</p>
+      <input id="fileInput" type="file" class="hidden" accept=".xlsx,.xls,.csv" />
+    </div>
+
+    <div id="progressContainer" class="hidden mt-8">
+      <div class="flex items-center justify-between mb-3">
+        <span id="progressText" class="text-sm font-semibold text-slate-300">Processing records...</span>
+        <span id="progressCount" class="text-sm font-mono text-emerald-400 font-bold">0/0</span>
+      </div>
+      <div class="w-full bg-slate-950 rounded-full h-4 overflow-hidden border-2 border-slate-700">
+        <div id="progressBar" class="gradient-main h-full relative transition-all duration-500" style="width:0%">
+          <div class="absolute inset-0 shimmer"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results Table -->
+  <section id="resultsSection" class="hidden fade-in">
+    <div class="glass rounded-2xl shadow-2xl overflow-hidden border border-slate-700/50">
+      <div class="flex items-center justify-between px-8 py-5 border-b border-slate-700/70 gradient-header">
+        <div class="flex items-center gap-3">
+          <div class="bg-emerald-500/20 rounded-lg p-2 border border-emerald-500/40">
+            <i data-lucide="table" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <h2 class="text-lg font-bold">Verification Results</h2>
+          <span id="resultCount" class="gradient-main text-sm font-bold px-4 py-1.5 rounded-full ml-2 shadow-lg">0</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            onclick="clearResults()"
+            class="px-4 py-2.5 rounded-xl glass hover:bg-slate-800 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition"
+          >
+            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i><span>Clear</span>
+          </button>
+          <button
+            onclick="exportToExcel()"
+            class="px-4 py-2.5 rounded-xl gradient-main text-xs font-semibold flex items-center gap-2 shadow-lg"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i><span>Export Excel</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto scrollbar">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-950/90">
+          <tr>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">#</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">GSTIN</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Legal Name</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Trade Name</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Status</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Constitution</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">State</th>
+            <th class="px-5 py-4 text-left text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Returns Filed</th>
+            <th class="px-5 py-4 text-center text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Actions</th>
+          </tr>
+          </thead>
+          <tbody id="resultsTableBody" class="divide-y divide-slate-800/80"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- History Panel -->
+<div id="historyOverlay" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden z-40" onclick="closeHistory()"></div>
+<div id="historyPanel" class="fixed inset-y-0 right-0 w-full sm:w-[480px] glass slide-over z-50 shadow-2xl border-l border-slate-700/60">
+  <div class="h-full flex flex-col">
+    <div class="flex items-center justify-between px-7 py-5 border-b border-slate-700/70 gradient-header">
+      <div class="flex items-center gap-3">
+        <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+          <i data-lucide="clock" class="w-5 h-5 text-emerald-400"></i>
+        </div>
+        <h3 class="text-lg font-bold">Session History</h3>
+      </div>
+      <button onclick="closeHistory()" class="text-slate-400 hover:text-white transition">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+    </div>
+    <div id="historyContent" class="flex-1 overflow-y-auto px-6 py-5 space-y-4 scrollbar"></div>
+    <div class="px-6 pb-5 pt-3 border-t border-slate-700/70">
+      <button
+        onclick="clearHistory()"
+        class="w-full px-5 py-3 rounded-xl bg-red-500/90 hover:bg-red-600 text-sm font-bold flex items-center justify-center gap-2 transition shadow-lg"
+      >
+        <i data-lucide="trash-2" class="w-4 h-4"></i><span>Clear All History</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Full Details Modal -->
+<div id="detailsModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/85 backdrop-blur-md" onclick="closeDetailsModal()"></div>
+  <div class="relative h-full flex items-center justify-center p-4">
+    <div class="glass rounded-2xl max-w-6xl w-full max-h-[92vh] overflow-y-auto scrollbar border border-slate-700/60 shadow-2xl">
+      <div class="sticky top-0 glass flex items-center justify-between px-8 py-5 border-b border-slate-700/70 gradient-header rounded-t-2xl z-10">
+        <div class="flex items-center gap-3">
+          <div class="gradient-main p-2.5 rounded-lg shadow-xl">
+            <i data-lucide="file-text" class="w-6 h-6 text-white"></i>
+          </div>
+          <h3 class="text-xl font-bold">Complete GST Profile & Compliance History</h3>
+        </div>
+        <button onclick="closeDetailsModal()" class="text-slate-400 hover:text-white transition hover:rotate-90 transform duration-300">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <div id="modalContent" class="p-8"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ACCESS_PASSWORD = 'chirag930';
+
+  let verificationResults = [];
+  let isProcessing = false;
+  let currentGSTDetails = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+    if (sessionStorage.getItem('gst-sentinel-auth') === '1') {
+      document.getElementById('loginOverlay').style.display = 'none';
+    }
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById('loginPassword').value;
+    const errorDiv = document.getElementById('loginError');
+    if (pwd === ACCESS_PASSWORD) {
+      sessionStorage.setItem('gst-sentinel-auth', '1');
+      document.getElementById('loginOverlay').style.display = 'none';
+      showNotification('✓ Access granted. Welcome to GST Sentinel.', 'success');
+    } else {
+      errorDiv.textContent = '❌ Invalid password. Access denied.';
+      errorDiv.classList.remove('hidden');
+    }
+  });
+
+  async function callVerifyApi(gstNumber) {
+    const res = await fetch('/api/verify-gst.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gst_number: gstNumber })
+    });
+    if (!res.ok) throw new Error('Network error');
+    return await res.json();
+  }
+
+  async function verifySingleGST() {
+    const input = document.getElementById('singleGST');
+    const gstNumber = input.value.trim().toUpperCase();
+    const resultDiv = document.getElementById('singleResult');
+
+    if (!gstNumber) {
+      showNotification('Please enter a GSTIN.', 'error');
+      return;
+    }
+    if (gstNumber.length !== 15) {
+      showNotification('GSTIN must be exactly 15 characters.', 'error');
+      return;
+    }
+
+    resultDiv.classList.remove('hidden');
+    resultDiv.innerHTML =
+      '<div class="flex flex-col items-center justify-center py-10 text-slate-400">' +
+      '<i data-lucide="loader" class="w-8 h-8 mb-3 animate-spin text-emerald-400"></i>' +
+      '<p class="font-semibold">Verifying GST profile and return history...</p></div>';
+    lucide.createIcons();
+
+    try {
+      const data = await callVerifyApi(gstNumber);
+      if (data.success && data.data) {
+        const gst = data.data;
+        currentGSTDetails = { ...gst, gst_number: gstNumber };
+        addToHistory(currentGSTDetails);
+
+        resultDiv.innerHTML = renderSingleCard(currentGSTDetails);
+        lucide.createIcons();
+        showNotification('✓ GST verified successfully with full compliance data.', 'success');
+      } else {
+        resultDiv.innerHTML =
+          `<div class="bg-red-500/10 border-2 border-red-500/50 rounded-xl p-6 text-sm text-red-400">
+            <div class="flex items-center gap-3">
+              <i data-lucide="alert-circle" class="w-6 h-6"></i>
+              <span class="font-semibold">${data.message || 'Verification failed.'}</span>
+            </div>
+          </div>`;
+        lucide.createIcons();
+      }
+    } catch (err) {
+      resultDiv.innerHTML =
+        `<div class="bg-red-500/10 border-2 border-red-500/50 rounded-xl p-6 text-sm text-red-400">
+          <strong>Error:</strong> ${err.message}
+        </div>`;
+    }
+  }
+
+  function renderSingleCard(gst) {
+    const addr = gst.address || {};
+    const juris = gst.jurisdiction || {};
+    const nature = Array.isArray(gst.business_nature) ? gst.business_nature : [];
+    const returns = Array.isArray(gst.return_status_history) ? gst.return_status_history : [];
+
+    const returnsSummary = returns.length > 0
+      ? `<span class="info-badge"><i data-lucide="check-circle" class="w-3 h-3"></i> ${returns.length} Returns Filed</span>`
+      : `<span class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-700/50 text-slate-400">No returns data</span>`;
+
+    return `
+      <div class="glass rounded-2xl p-7 border-2 border-emerald-500/40 fade-in shadow-2xl">
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-6 pb-6 border-b border-slate-700/60">
+          <div class="flex-1">
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <h3 class="text-2xl font-bold text-emerald-400">${gst.legal_name}</h3>
+              <span class="px-4 py-1.5 rounded-full text-sm font-bold ${statusClass(gst.status)}">
+                ${gst.status}
+              </span>
+            </div>
+            <p class="text-sm text-slate-400 font-mono mb-3">${gst.gst_type || 'N/A'} • GSTIN: ${gst.gst_number}</p>
+            ${returnsSummary}
+          </div>
+          <button
+            onclick='openDetailsModal(${JSON.stringify(gst).replace(/'/g, "&#39;")})'
+            class="px-5 py-2.5 rounded-xl gradient-main text-sm font-bold hover:brightness-110 flex items-center gap-2 shadow-lg transition"
+          >
+            <i data-lucide="maximize-2" class="w-4 h-4"></i><span>View Full Profile & Returns</span>
+          </button>
+        </div>
+
+        <!-- Quick Info Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+          <div class="glass rounded-xl p-4 border border-slate-700/60">
+            <p class="text-[11px] text-slate-400 uppercase font-bold mb-2 flex items-center gap-1">
+              <i data-lucide="building-2" class="w-3 h-3"></i> Trade Name
+            </p>
+            <p class="text-sm font-bold">${gst.trade_name || 'N/A'}</p>
+          </div>
+          <div class="glass rounded-xl p-4 border border-slate-700/60">
+            <p class="text-[11px] text-slate-400 uppercase font-bold mb-2 flex items-center gap-1">
+              <i data-lucide="briefcase" class="w-3 h-3"></i> Constitution
+            </p>
+            <p class="text-sm font-bold">${gst.constitution || 'N/A'}</p>
+          </div>
+          <div class="glass rounded-xl p-4 border border-slate-700/60">
+            <p class="text-[11px] text-slate-400 uppercase font-bold mb-2 flex items-center gap-1">
+              <i data-lucide="calendar" class="w-3 h-3"></i> Registration Date
+            </p>
+            <p class="text-sm font-bold">${gst.registration_date || 'N/A'}</p>
+          </div>
+        </div>
+
+        <!-- Address & Jurisdiction -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+          <div class="glass rounded-xl p-5 border border-slate-700/60">
+            <p class="text-xs text-slate-400 uppercase font-bold mb-3 flex items-center gap-2">
+              <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i> Business Address
+            </p>
+            <p class="text-sm text-slate-200 leading-relaxed">
+              ${[addr.building, addr.location, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ')}
+            </p>
+          </div>
+          <div class="glass rounded-xl p-5 border border-slate-700/60">
+            <p class="text-xs text-slate-400 uppercase font-bold mb-3 flex items-center gap-2">
+              <i data-lucide="landmark" class="w-4 h-4 text-emerald-400"></i> Jurisdiction
+            </p>
+            <p class="text-[12px] text-slate-300">State: <span class="font-bold">${juris.state || 'N/A'}</span></p>
+            <p class="text-[12px] text-slate-300">Center: <span class="font-bold">${juris.center || 'N/A'}</span></p>
+          </div>
+        </div>
+
+        <!-- Business Nature -->
+        <div class="glass rounded-xl p-5 border border-slate-700/60 mb-6">
+          <p class="text-xs text-slate-400 uppercase font-bold mb-3 flex items-center gap-2">
+            <i data-lucide="store" class="w-4 h-4 text-emerald-400"></i> Business Nature
+          </p>
+          <div class="flex flex-wrap gap-2">
+            ${nature.map(n => `
+              <span class="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-xs text-emerald-300 font-semibold border border-emerald-500/30">
+                ${n}
+              </span>`).join('')}
+          </div>
+        </div>
+
+        <!-- Return Filing History Preview -->
+        ${returns.length > 0 ? `
+          <div class="glass rounded-xl p-5 border border-slate-700/60">
+            <p class="text-xs text-slate-400 uppercase font-bold mb-4 flex items-center gap-2">
+              <i data-lucide="file-check" class="w-4 h-4 text-emerald-400"></i> Recent Return Filing History (Last ${Math.min(3, returns.length)} filings)
+            </p>
+            <div class="space-y-2">
+              ${returns.slice(0, 3).map(ret => `
+                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-lg border border-slate-700/40">
+                  <div class="flex items-center gap-3">
+                    <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-[11px] font-bold text-emerald-300">
+                      ${ret.rtntype || 'N/A'}
+                    </span>
+                    <span class="text-xs text-slate-300">Period: <span class="font-semibold">${formatReturnPeriod(ret.ret_prd)}</span></span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-[11px] text-slate-400">Filed: ${ret.dof || 'N/A'}</span>
+                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${ret.status === 'Filed' ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}">
+                      ${ret.status || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            ${returns.length > 3 ? `
+              <button
+                onclick='openDetailsModal(${JSON.stringify(gst).replace(/'/g, "&#39;")})'
+                class="mt-3 text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+              >
+                <span>View all ${returns.length} return filings</span>
+                <i data-lucide="arrow-right" class="w-3 h-3"></i>
+              </button>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Footer -->
+        <div class="mt-6 pt-5 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-500">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            Last updated: ${gst.last_updated || 'N/A'}
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  function formatReturnPeriod(period) {
+    if (!period || period.length < 6) return period || 'N/A';
+    const month = period.slice(0, 2);
+    const year = period.slice(2);
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parseInt(month)] || month} ${year}`;
+  }
+
+  // Bulk file handling
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+  });
+
+  async function handleFile(file) {
+    if (isProcessing) {
+      showNotification('Already processing a file. Please wait.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const gstNumbers = rows.slice(1).map(r => String(r[0] || '').trim().toUpperCase()).filter(g => g.length === 15);
+        if (!gstNumbers.length) {
+          showNotification('No valid GSTIN found in first column.', 'error');
+          return;
+        }
+        await processBulk(gstNumbers);
+      } catch (err) {
+        showNotification('File read error: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function processBulk(gstNumbers) {
+    isProcessing = true;
+    verificationResults = [];
+    const progressContainer = document.getElementById('progressContainer');
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    const count = document.getElementById('progressCount');
+    progressContainer.classList.remove('hidden');
+    document.getElementById('resultsSection').classList.add('hidden');
+
+    let completed = 0;
+    const total = gstNumbers.length;
+
+    for (const gst of gstNumbers) {
+      try {
+        const res = await callVerifyApi(gst);
+        if (res.success && res.data) {
+          const full = { ...res.data, gst_number: gst };
+          verificationResults.push(full);
+          addToHistory(full);
+        } else {
+          verificationResults.push({
+            gst_number: gst,
+            legal_name: 'N/A',
+            trade_name: 'N/A',
+            status: 'Error',
+            constitution: 'N/A',
+            gst_type: 'N/A',
+            address: { state: 'N/A' },
+            business_nature: [],
+            return_status_history: [],
+            jurisdiction: {},
+            error_message: res.message || 'Failed'
+          });
+        }
+      } catch (err) {
+        verificationResults.push({
+          gst_number: gst,
+          legal_name: 'N/A',
+          trade_name: 'N/A',
+          status: 'Error',
+          constitution: 'N/A',
+          gst_type: 'N/A',
+          address: { state: 'N/A' },
+          business_nature: [],
+          return_status_history: [],
+          jurisdiction: {},
+          error_message: err.message
+        });
+      }
+      completed++;
+      const pct = (completed / total) * 100;
+      bar.style.width = pct + '%';
+      text.textContent = `Processing ${completed}/${total} GSTINs...`;
+      count.textContent = `${completed}/${total}`;
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    text.textContent = '✓ Verification completed successfully!';
+    displayResults();
+    isProcessing = false;
+    setTimeout(() => progressContainer.classList.add('hidden'), 2500);
+    showNotification(`✓ Successfully verified ${total} GSTINs with compliance data.`, 'success');
+  }
+
+  function displayResults() {
+    const tbody = document.getElementById('resultsTableBody');
+    const section = document.getElementById('resultsSection');
+    const count = document.getElementById('resultCount');
+    tbody.innerHTML = '';
+    verificationResults.forEach((r, i) => {
+      const addr = r.address || {};
+      const returns = Array.isArray(r.return_status_history) ? r.return_status_history : [];
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-slate-900/70 transition-all duration-200';
+      row.innerHTML = `
+        <td class="px-5 py-4 text-xs text-slate-400 font-bold">${i + 1}</td>
+        <td class="px-5 py-4 text-[13px] font-mono text-emerald-400 font-bold">${r.gst_number}</td>
+        <td class="px-5 py-4 text-[13px] font-bold">${r.legal_name}</td>
+        <td class="px-5 py-4 text-[13px] text-slate-200">${r.trade_name || 'N/A'}</td>
+        <td class="px-5 py-4">
+          <span class="px-3 py-1.5 rounded-full text-[11px] font-bold ${statusClass(r.status)}">
+            ${r.status}
+          </span>
+        </td>
+        <td class="px-5 py-4 text-[13px]">${r.constitution || 'N/A'}</td>
+        <td class="px-5 py-4 text-[13px]">${addr.state || 'N/A'}</td>
+        <td class="px-5 py-4 text-center">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${returns.length > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-700/50 text-slate-400'} text-[11px] font-bold">
+            <i data-lucide="file-check" class="w-3 h-3"></i>
+            ${returns.length}
+          </span>
+        </td>
+        <td class="px-5 py-4 text-center">
+          <button
+            onclick='openDetailsModal(${JSON.stringify(r).replace(/'/g, "&#39;")})'
+            class="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-[11px] text-emerald-300 hover:bg-emerald-500/30 font-semibold transition inline-flex items-center gap-1"
+          >
+            <i data-lucide="eye" class="w-3 h-3"></i> View
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+    count.textContent = verificationResults.length;
+    section.classList.remove('hidden');
+    lucide.createIcons();
+  }
+
+  function exportToExcel() {
+    if (!verificationResults.length) {
+      showNotification('No data to export.', 'error');
+      return;
+    }
+    const rows = [];
+    verificationResults.forEach((r, idx) => {
+      const addr = r.address || {};
+      const j = r.jurisdiction || {};
+      const returns = Array.isArray(r.return_status_history) ? r.return_status_history : [];
+      
+      // Main row
+      rows.push({
+        'Sr No': idx + 1,
+        'GSTIN': r.gst_number,
+        'Legal Name': r.legal_name,
+        'Trade Name': r.trade_name || '',
+        'Status': r.status,
+        'Constitution': r.constitution || '',
+        'Registration Date': r.registration_date || '',
+        'GST Type': r.gst_type || '',
+        'State': addr.state || '',
+        'City': addr.city || '',
+        'Pincode': addr.pincode || '',
+        'Full Address': [addr.building, addr.location, addr.city, addr.state, addr.pincode].filter(Boolean).join(', '),
+        'Business Nature': (r.business_nature || []).join(', '),
+        'Last Updated': r.last_updated || '',
+        'Jurisdiction State': j.state || '',
+        'Jurisdiction Center': j.center || '',
+        'Total Returns Filed': returns.length
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 6 }, { wch: 18 }, { wch: 35 }, { wch: 30 }, { wch: 12 },
+      { wch: 22 }, { wch: 15 }, { wch: 12 }, { wch: 20 }, { wch: 18 },
+      { wch: 10 }, { wch: 50 }, { wch: 35 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 10 }
+    ];
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'GST Verification Report');
+    
+    const ts = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `GST_Sentinel_Compliance_Report_${ts}.xlsx`);
+    showNotification('✓ Excel report with compliance data generated successfully.', 'success');
+  }
+
+  function clearResults() {
+    if (confirm('Clear all verification results from this session?')) {
+      verificationResults = [];
+      document.getElementById('resultsTableBody').innerHTML = '';
+      document.getElementById('resultsSection').classList.add('hidden');
+      showNotification('✓ Results cleared successfully.', 'success');
+    }
+  }
+
+  // History
+  function addToHistory(gst) {
+    let hist = JSON.parse(localStorage.getItem('gstHistory') || '[]');
+    hist.unshift({ ...gst, timestamp: new Date().toISOString() });
+    hist = hist.slice(0, 100);
+    localStorage.setItem('gstHistory', JSON.stringify(hist));
+  }
+
+  function loadHistory() {
+    const container = document.getElementById('historyContent');
+    const hist = JSON.parse(localStorage.getItem('gstHistory') || '[]');
+    if (!hist.length) {
+      container.innerHTML = '<div class="text-center py-12"><i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-slate-600"></i><p class="text-sm text-slate-500 font-medium">No verification history yet</p></div>';
+      lucide.createIcons();
+      return;
+    }
+    container.innerHTML = hist.map(item => {
+      const addr = item.address || {};
+      const returns = Array.isArray(item.return_status_history) ? item.return_status_history : [];
+      return `
+        <div
+          class="glass rounded-xl p-4 border border-slate-700 hover:border-emerald-500/60 cursor-pointer transition-all duration-300 transform hover:scale-[1.02]"
+          onclick="fillGSTFromHistory('${item.gst_number}')"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <p class="font-mono text-xs text-emerald-400 font-bold">${item.gst_number}</p>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${statusClass(item.status)}">
+              ${item.status}
+            </span>
+          </div>
+          <p class="text-sm font-bold mb-1">${item.legal_name}</p>
+          <p class="text-[11px] text-slate-400">${addr.state || 'N/A'} • ${item.constitution || 'N/A'}</p>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-700/60">
+            <span class="text-[10px] text-slate-500">
+              ${new Date(item.timestamp).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+            <span class="text-[10px] font-semibold ${returns.length > 0 ? 'text-emerald-400' : 'text-slate-500'}">
+              ${returns.length} Returns
+            </span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    lucide.createIcons();
+  }
+
+  function openHistory() {
+    loadHistory();
+    document.getElementById('historyPanel').classList.add('open');
+    document.getElementById('historyOverlay').classList.remove('hidden');
+  }
+
+  function closeHistory() {
+    document.getElementById('historyPanel').classList.remove('open');
+    document.getElementById('historyOverlay').classList.add('hidden');
+  }
+
+  function clearHistory() {
+    if (confirm('Clear all verification history from this browser?')) {
+      localStorage.removeItem('gstHistory');
+      loadHistory();
+      showNotification('✓ History cleared successfully.', 'success');
+    }
+  }
+
+  function fillGSTFromHistory(gst) {
+    document.getElementById('singleGST').value = gst;
+    closeHistory();
+    verifySingleGST();
+  }
+
+  // Full Details Modal
+  function openDetailsModal(gstData) {
+    const modal = document.getElementById('detailsModal');
+    const content = document.getElementById('modalContent');
+    if (typeof gstData === 'string') gstData = JSON.parse(gstData);
+    const addr = gstData.address || {};
+    const j = gstData.jurisdiction || {};
+    const nature = Array.isArray(gstData.business_nature) ? gstData.business_nature : [];
+    const returns = Array.isArray(gstData.return_status_history) ? gstData.return_status_history : [];
+
+    content.innerHTML = `
+      <div class="space-y-6">
+        <!-- Header Card -->
+        <div class="gradient-main rounded-2xl p-7 text-white shadow-2xl">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="flex-1">
+              <p class="text-xs opacity-80 mb-1 uppercase font-bold">GSTIN</p>
+              <p class="font-mono text-base mb-3 font-bold">${gstData.gst_number || ''}</p>
+              <h2 class="text-3xl font-black mb-2">${gstData.legal_name}</h2>
+              <p class="text-base opacity-90">${gstData.trade_name || ''}</p>
+            </div>
+            <div class="flex flex-col items-end gap-2">
+              <span class="px-5 py-2 rounded-full text-sm font-bold bg-white/20 backdrop-blur shadow-lg">
+                ${gstData.status}
+              </span>
+              <span class="text-xs opacity-80">Type: ${gstData.gst_type || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Business Details Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="glass rounded-xl p-6 border border-slate-700/60">
+            <div class="flex items-center gap-2 mb-4">
+              <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+                <i data-lucide="briefcase" class="w-5 h-5 text-emerald-400"></i>
+              </div>
+              <h3 class="font-bold text-base">Business Information</h3>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <p class="text-[11px] text-slate-400 uppercase mb-1">Constitution</p>
+                <p class="font-bold text-emerald-400">${gstData.constitution || 'N/A'}</p>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-400 uppercase mb-1">Registration Date</p>
+                <p class="font-semibold">${gstData.registration_date || 'N/A'}</p>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-400 uppercase mb-1">Last Updated</p>
+                <p class="font-semibold">${gstData.last_updated || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass rounded-xl p-6 border border-slate-700/60">
+            <div class="flex items-center gap-2 mb-4">
+              <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+                <i data-lucide="store" class="w-5 h-5 text-emerald-400"></i>
+              </div>
+              <h3 class="font-bold text-base">Business Nature</h3>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              ${nature.map(n => `<span class="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-xs text-emerald-300 font-semibold border border-emerald-500/30">${n}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Address -->
+        <div class="glass rounded-xl p-6 border border-slate-700/60">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+              <i data-lucide="map-pin" class="w-5 h-5 text-emerald-400"></i>
+            </div>
+            <h3 class="font-bold text-base">Complete Business Address</h3>
+          </div>
+          <div class="bg-slate-950/70 rounded-xl p-5 border border-slate-700/50">
+            <p class="text-slate-200 leading-relaxed text-base">
+              ${[addr.building, addr.location, addr.city, addr.state + ' - ' + addr.pincode].filter(Boolean).join(',<br>')}
+            </p>
+          </div>
+        </div>
+
+        <!-- Jurisdiction -->
+        <div class="glass rounded-xl p-6 border border-slate-700/60">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+              <i data-lucide="landmark" class="w-5 h-5 text-emerald-400"></i>
+            </div>
+            <h3 class="font-bold text-base">Jurisdiction Details</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-950/70 rounded-xl p-4 border border-slate-700/50">
+              <p class="text-xs text-slate-400 mb-2 uppercase font-bold">State Jurisdiction</p>
+              <p class="font-bold text-slate-200">${j.state || 'N/A'}</p>
+            </div>
+            <div class="bg-slate-950/70 rounded-xl p-4 border border-slate-700/50">
+              <p class="text-xs text-slate-400 mb-2 uppercase font-bold">Center Jurisdiction</p>
+              <p class="font-bold text-slate-200">${j.center || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Return Filing History -->
+        ${returns.length > 0 ? `
+          <div class="glass rounded-xl p-6 border-2 border-emerald-500/40">
+            <div class="flex items-center justify-between mb-5">
+              <div class="flex items-center gap-2">
+                <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/40">
+                  <i data-lucide="file-check" class="w-5 h-5 text-emerald-400"></i>
+                </div>
+                <h3 class="font-bold text-lg">GST Return Filing History</h3>
+              </div>
+              <span class="px-4 py-1.5 rounded-full gradient-main text-sm font-bold shadow-lg">
+                ${returns.length} Filings
+              </span>
+            </div>
+            
+            <div class="overflow-x-auto scrollbar">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-950/80">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">#</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">Return Type</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">Period</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">Date of Filing</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">ARN</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold text-emerald-400 uppercase">Mode</th>
+                    <th class="px-4 py-3 text-center text-[11px] font-bold text-emerald-400 uppercase">Status</th>
+                    <th class="px-4 py-3 text-center text-[11px] font-bold text-emerald-400 uppercase">Valid</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60">
+                  ${returns.map((ret, idx) => `
+                    <tr class="return-row transition-all duration-200">
+                      <td class="px-4 py-3 text-xs text-slate-400 font-bold">${idx + 1}</td>
+                      <td class="px-4 py-3">
+                        <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-300 border border-emerald-500/30">
+                          ${ret.rtntype || 'N/A'}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-xs font-semibold">${formatReturnPeriod(ret.ret_prd)}</td>
+                      <td class="px-4 py-3 text-xs text-slate-300">${ret.dof || 'N/A'}</td>
+                      <td class="px-4 py-3 text-xs font-mono text-slate-400">${ret.arn || 'N/A'}</td>
+                      <td class="px-4 py-3 text-xs text-slate-400">${ret.mof || 'N/A'}</td>
+                      <td class="px-4 py-3 text-center">
+                        <span class="px-3 py-1 rounded-full text-[10px] font-bold ${ret.status === 'Filed' ? 'bg-green-500/20 text-green-400 border border-green-500/40' : 'bg-slate-700 text-slate-300'}">
+                          ${ret.status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${ret.valid === 'Y' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                          ${ret.valid === 'Y' ? '✓ Yes' : '✗ No'}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : `
+          <div class="glass rounded-xl p-8 border border-slate-700/60 text-center">
+            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-slate-600"></i>
+            <p class="text-sm text-slate-400 font-medium">No return filing history available for this GSTIN</p>
+          </div>
+        `}
+      </div>
+    `;
+    
+    modal.classList.remove('hidden');
+    lucide.createIcons();
+  }
+
+  function closeDetailsModal() {
+    document.getElementById('detailsModal').classList.add('hidden');
+  }
+
+  // Helpers
+  function statusClass(s) {
+    s = (s || '').toLowerCase();
+    if (s === 'active') return 'status-active';
+    if (s === 'cancelled') return 'status-cancelled';
+    if (s === 'suspended') return 'status-suspended';
+    return 'status-unknown';
+  }
+
+  function showNotification(message, type = 'info') {
+    const colors = {
+      success: 'from-emerald-500 to-emerald-600',
+      error: 'from-red-500 to-red-600',
+      info: 'from-sky-500 to-sky-600'
+    };
+    const icons = {
+      success: 'check-circle',
+      error: 'alert-circle',
+      info: 'info'
+    };
+    const toast = document.createElement('div');
+    toast.className = `fixed top-6 right-6 z-50 bg-gradient-to-r ${colors[type]} text-white px-5 py-4 rounded-xl shadow-2xl text-sm flex items-center gap-3 fade-in font-semibold`;
+    toast.innerHTML = `<i data-lucide="${icons[type]}" class="w-5 h-5"></i><span>${message}</span>`;
+    document.body.appendChild(toast);
+    lucide.createIcons();
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  document.getElementById('singleGST').addEventListener('keypress', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      verifySingleGST();
+    }
+  });
+</script>
+</body>
+</html>
